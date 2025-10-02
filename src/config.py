@@ -1,0 +1,13 @@
+ASSETS_MOMENTUM = ["600519.SH", "000001.SZ", "600000.SH"]  # 股票池示例：茅台、平安银行、浦发银行
+BASELINE = "600519.SH"   # 基准：比如贵州茅台
+START = "2015-01-01"
+END = None                        # None 表示到最新
+COST_BPS = 10                     # 双边各10bp≈0.10%
+SMA_SHORT = 20
+SMA_LONG = 60
+MOM_LOOKBACK = 12                 # 12-1 动量
+MOM_SKIP = 1
+MOM_TOP_N = 2                     # 每月选前N
+CACHE_DIR = "data"
+OUTPUT_FIG_DIR = "output/figures"
+OUTPUT_REP_DIR = "output/reports"
