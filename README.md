@@ -57,13 +57,16 @@ pip install -r requirements.txt
 ## 可视化展示
 
 **净值曲线（双均线策略）**
-![sma_净值](output/sma_净值.png)
+<img width="1249" height="660" alt="sma_净值" src="https://github.com/user-attachments/assets/720062ab-f23b-46ef-8406-81791c34c774" />
+
 
 **月度收益热力图（低波动策略）**
-![低波_月度收益热力图](output/低波_月度收益热力图.png)
+<img width="1342" height="649" alt="低波_月度收益热力图" src="https://github.com/user-attachments/assets/90d663ea-89da-43ca-a7ee-b88e0d145051" />
+
 
 **持仓权重时间变化（动量策略）**
-![动量_持仓权重](output/动量_持仓权重.png)
+<img width="1266" height="591" alt="动量_持仓权重" src="https://github.com/user-attachments/assets/4f006662-d2ab-449a-8bee-b03b46931ea0" />
+
 
 ---
 
