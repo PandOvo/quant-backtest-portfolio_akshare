@@ -36,3 +36,45 @@ def weights_momentum_rotation(close: pd.DataFrame, top_n=MOM_TOP_N) -> pd.DataFr
     w_monthly = pd.DataFrame(weights_list).sort_index()
     w_daily = w_monthly.reindex(close.resample("D").last().index).ffill().reindex(close.index).fillna(0.0)
     return w_daily
+
+def _monthly_index_like(prices: pd.DataFrame) -> pd.DatetimeIndex:
+
+    return prices.resample("ME").last().index
+
+def weights_low_volatility(close: pd.DataFrame, lookback=60, top_n=None) -> pd.DataFrame:
+
+    if top_n is None:
+        top_n = MOM_TOP_N
+
+    rets = close.pct_change()
+    # 月末调仓点
+    rebal_dates = _monthly_index_like(close)
+    weights_list = []
+
+    for dt in rebal_dates:
+
+        end_loc = close.index.searchsorted(dt)
+        if end_loc <= lookback:
+            continue
+        window_slice = slice(end_loc - lookback, end_loc)
+        vol = rets.iloc[window_slice].std()
+        vol = vol.dropna()
+        if vol.empty:
+            continue
+        picks = vol.nsmallest(min(top_n, len(vol))).index
+        w = pd.Series(0.0, index=close.columns)
+        w.loc[picks] = 1.0 / len(picks)
+        w.name = dt
+        weights_list.append(w)
+
+    if not weights_list:
+        return pd.DataFrame(0.0, index=close.index, columns=close.columns)
+
+    w_monthly = pd.DataFrame(weights_list).sort_index()
+    w_daily = w_monthly.reindex(close.resample("D").last().index).ffill().reindex(close.index).fillna(0.0)
+    return w_daily
+
+
+# ==== 计算月度收益序列（热力图） ====
+def monthly_returns(daily_ret: pd.Series) -> pd.Series:
+    return (1.0 + daily_ret).resample("ME").prod() - 1.0
