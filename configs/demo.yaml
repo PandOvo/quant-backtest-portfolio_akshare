@@ -20,8 +20,25 @@ strategies:
     lookback: 12
     skip: 1
     top_n: 2
+    weighting: equal
+  trend_momentum:
+    enabled: true
+    lookback: 12
+    skip: 1
+    top_n: 2
+    min_score: 0.0
+    vol_lookback: 60
+  multi_factor:
+    enabled: true
+    momentum_lookback: 12
+    momentum_skip: 1
+    vol_lookback: 60
+    top_n: 2
+    momentum_weight: 0.6
   low_volatility:
     enabled: true
     lookback: 60
     top_n: 1
-
+  risk_parity:
+    enabled: true
+    lookback: 120

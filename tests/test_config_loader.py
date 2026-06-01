@@ -28,3 +28,6 @@ strategies:
     assert cfg.strategies["momentum"]["lookback"] == 12
     assert cfg.strategies["momentum"]["top_n"] == 1
     assert cfg.strategies["low_volatility"]["enabled"] is False
+    assert cfg.strategies["trend_momentum"]["min_score"] == 0.0
+    assert cfg.strategies["multi_factor"]["momentum_weight"] == 0.6
+    assert cfg.strategies["risk_parity"]["lookback"] == 120

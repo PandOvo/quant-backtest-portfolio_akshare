@@ -7,7 +7,15 @@ from .config_loader import BacktestConfig, load_config
 from .data import get_close_series, get_panel
 from .metrics import max_drawdown, summary_table
 from .plotting import plot_drawdown, plot_equity, plot_excess_return, plot_monthly_heatmap, plot_weights_area
-from .strategies import monthly_returns, weights_low_volatility, weights_momentum_rotation, weights_sma_crossover
+from .strategies import (
+    monthly_returns,
+    weights_low_volatility,
+    weights_momentum_rotation,
+    weights_momentum_low_vol_score,
+    weights_risk_parity,
+    weights_sma_crossover,
+    weights_trend_filtered_momentum,
+)
 
 
 def _strategy_enabled(cfg: BacktestConfig, name: str) -> bool:
@@ -48,6 +56,9 @@ def run_momentum(cfg: BacktestConfig, close_panel=None):
         lookback=params.get("lookback", 12),
         skip=params.get("skip", 1),
         top_n=params.get("top_n", 2),
+        weighting=params.get("weighting", "equal"),
+        min_score=params.get("min_score"),
+        vol_lookback=params.get("vol_lookback", 60),
     )
     res = backtest_weights(close, w, cost_bps=cfg.cost_bps)
     baseline_nav = _baseline_nav(cfg, res.index)
@@ -59,6 +70,32 @@ def run_momentum(cfg: BacktestConfig, close_panel=None):
     plot_monthly_heatmap(monthly_returns(res["port_ret"]), save_path=os.path.join(cfg.output_fig_dir, "动量_月度收益热力图.png"))
     met = summary_table(res)
     met.to_csv(os.path.join(cfg.output_rep_dir, "动量_指标.csv"), index=False, encoding="utf-8-sig")
+    return res, met, w
+
+
+def run_trend_momentum(cfg: BacktestConfig, close_panel=None):
+    params = cfg.strategies.get("trend_momentum", {})
+    close = close_panel if close_panel is not None else get_panel(
+        cfg.assets, start=cfg.start, end=cfg.end, adjust=cfg.adjust, cache_dir=cfg.cache_dir
+    ).dropna(how="all")
+    w = weights_trend_filtered_momentum(
+        close,
+        lookback=params.get("lookback", 12),
+        skip=params.get("skip", 1),
+        top_n=params.get("top_n", 2),
+        min_score=params.get("min_score", 0.0),
+        vol_lookback=params.get("vol_lookback", 60),
+    )
+    res = backtest_weights(close, w, cost_bps=cfg.cost_bps)
+    baseline_nav = _baseline_nav(cfg, res.index)
+    plot_equity(res["nav"], baseline_nav=baseline_nav, save_path=os.path.join(cfg.output_fig_dir, "增强动量_净值.png"), title="趋势过滤动量 - 净值曲线")
+    _, dd = max_drawdown(res["nav"])
+    plot_drawdown(dd, save_path=os.path.join(cfg.output_fig_dir, "增强动量_回撤.png"), title="趋势过滤动量 - 回撤曲线")
+    plot_excess_return(res["nav"], baseline_nav, save_path=os.path.join(cfg.output_fig_dir, "增强动量_超额收益.png"))
+    plot_weights_area(w, save_path=os.path.join(cfg.output_fig_dir, "增强动量_持仓权重.png"))
+    plot_monthly_heatmap(monthly_returns(res["port_ret"]), save_path=os.path.join(cfg.output_fig_dir, "增强动量_月度收益热力图.png"))
+    met = summary_table(res)
+    met.to_csv(os.path.join(cfg.output_rep_dir, "增强动量_指标.csv"), index=False, encoding="utf-8-sig")
     return res, met, w
 
 
@@ -81,6 +118,51 @@ def run_low_volatility(cfg: BacktestConfig, close_panel=None):
     return res, met, w
 
 
+def run_multi_factor(cfg: BacktestConfig, close_panel=None):
+    params = cfg.strategies.get("multi_factor", {})
+    close = close_panel if close_panel is not None else get_panel(
+        cfg.assets, start=cfg.start, end=cfg.end, adjust=cfg.adjust, cache_dir=cfg.cache_dir
+    ).dropna(how="all")
+    w = weights_momentum_low_vol_score(
+        close,
+        momentum_lookback=params.get("momentum_lookback", 12),
+        momentum_skip=params.get("momentum_skip", 1),
+        vol_lookback=params.get("vol_lookback", 60),
+        top_n=params.get("top_n", 2),
+        momentum_weight=params.get("momentum_weight", 0.6),
+    )
+    res = backtest_weights(close, w, cost_bps=cfg.cost_bps)
+    baseline_nav = _baseline_nav(cfg, res.index)
+    plot_equity(res["nav"], baseline_nav=baseline_nav, save_path=os.path.join(cfg.output_fig_dir, "多因子_净值.png"), title="动量低波复合因子 - 净值曲线")
+    _, dd = max_drawdown(res["nav"])
+    plot_drawdown(dd, save_path=os.path.join(cfg.output_fig_dir, "多因子_回撤.png"), title="动量低波复合因子 - 回撤曲线")
+    plot_excess_return(res["nav"], baseline_nav, save_path=os.path.join(cfg.output_fig_dir, "多因子_超额收益.png"))
+    plot_weights_area(w, save_path=os.path.join(cfg.output_fig_dir, "多因子_持仓权重.png"))
+    plot_monthly_heatmap(monthly_returns(res["port_ret"]), save_path=os.path.join(cfg.output_fig_dir, "多因子_月度收益热力图.png"))
+    met = summary_table(res)
+    met.to_csv(os.path.join(cfg.output_rep_dir, "多因子_指标.csv"), index=False, encoding="utf-8-sig")
+    return res, met, w
+
+
+def run_risk_parity(cfg: BacktestConfig, close_panel=None):
+    params = cfg.strategies.get("risk_parity", {})
+    close = close_panel if close_panel is not None else get_panel(
+        cfg.assets, start=cfg.start, end=cfg.end, adjust=cfg.adjust, cache_dir=cfg.cache_dir
+    ).dropna(how="all")
+    w = weights_risk_parity(close, lookback=params.get("lookback", 120))
+    res = backtest_weights(close, w, cost_bps=cfg.cost_bps)
+    baseline_nav = _baseline_nav(cfg, res.index)
+    plot_equity(res["nav"], baseline_nav=baseline_nav, save_path=os.path.join(cfg.output_fig_dir, "风险平价_净值.png"), title="反波动率风险平价 - 净值曲线")
+    _, dd = max_drawdown(res["nav"])
+    plot_drawdown(dd, save_path=os.path.join(cfg.output_fig_dir, "风险平价_回撤.png"), title="反波动率风险平价 - 回撤曲线")
+    plot_excess_return(res["nav"], baseline_nav, save_path=os.path.join(cfg.output_fig_dir, "风险平价_超额收益.png"))
+    plot_weights_area(w, save_path=os.path.join(cfg.output_fig_dir, "风险平价_持仓权重.png"))
+    plot_monthly_heatmap(monthly_returns(res["port_ret"]), save_path=os.path.join(cfg.output_fig_dir, "风险平价_月度收益热力图.png"))
+    met = summary_table(res)
+    met.to_csv(os.path.join(cfg.output_rep_dir, "风险平价_指标.csv"), index=False, encoding="utf-8-sig")
+    return res, met, w
+
+
 def run_backtest(cfg: BacktestConfig) -> pd.DataFrame:
     os.makedirs(cfg.output_fig_dir, exist_ok=True)
     os.makedirs(cfg.output_rep_dir, exist_ok=True)
@@ -94,9 +176,18 @@ def run_backtest(cfg: BacktestConfig) -> pd.DataFrame:
     if _strategy_enabled(cfg, "momentum"):
         _, mom_met, _ = run_momentum(cfg, panel)
         metrics.append(mom_met.assign(策略="12-1动量"))
+    if _strategy_enabled(cfg, "trend_momentum"):
+        _, trend_met, _ = run_trend_momentum(cfg, panel)
+        metrics.append(trend_met.assign(策略="趋势过滤动量"))
+    if _strategy_enabled(cfg, "multi_factor"):
+        _, mf_met, _ = run_multi_factor(cfg, panel)
+        metrics.append(mf_met.assign(策略="动量低波多因子"))
     if _strategy_enabled(cfg, "low_volatility"):
         _, lv_met, _ = run_low_volatility(cfg, panel)
         metrics.append(lv_met.assign(策略="低波动"))
+    if _strategy_enabled(cfg, "risk_parity"):
+        _, rp_met, _ = run_risk_parity(cfg, panel)
+        metrics.append(rp_met.assign(策略="风险平价"))
 
     all_metrics = pd.concat(metrics, ignore_index=True)
     all_metrics = all_metrics[["策略"] + [c for c in all_metrics.columns if c != "策略"]]
@@ -109,4 +200,3 @@ def main(config_path: str | None = None) -> pd.DataFrame:
     result = run_backtest(cfg)
     print(f"回测完成。图表目录: {cfg.output_fig_dir} | 报表目录: {cfg.output_rep_dir}")
     return result
-

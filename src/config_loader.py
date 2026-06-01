@@ -19,7 +19,10 @@ class BacktestConfig:
     strategies: dict = field(default_factory=lambda: {
         "sma": {"enabled": True, "short_window": defaults.SMA_SHORT, "long_window": defaults.SMA_LONG},
         "momentum": {"enabled": True, "lookback": defaults.MOM_LOOKBACK, "skip": defaults.MOM_SKIP, "top_n": defaults.MOM_TOP_N},
+        "trend_momentum": {"enabled": True, "lookback": defaults.MOM_LOOKBACK, "skip": defaults.MOM_SKIP, "top_n": defaults.MOM_TOP_N, "min_score": 0.0, "vol_lookback": 60},
+        "multi_factor": {"enabled": True, "momentum_lookback": defaults.MOM_LOOKBACK, "momentum_skip": defaults.MOM_SKIP, "vol_lookback": 60, "top_n": defaults.MOM_TOP_N, "momentum_weight": 0.6},
         "low_volatility": {"enabled": True, "lookback": 60, "top_n": 1},
+        "risk_parity": {"enabled": True, "lookback": 120},
     })
 
     @property
@@ -50,4 +53,3 @@ def load_config(path: str | None = None) -> BacktestConfig:
         cfg.strategies = merged
 
     return cfg
-
