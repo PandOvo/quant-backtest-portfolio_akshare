@@ -1,6 +1,7 @@
 import pandas as pd
 
 from src.strategies import _mom_score, weights_momentum_rotation
+from src.strategies import weights_sma_crossover
 
 
 def test_momentum_score_uses_lookback_to_skip_window():
@@ -43,3 +44,12 @@ def test_momentum_rotation_returns_zero_weights_when_history_is_too_short():
 
     assert list(weights.columns) == ["A"]
     assert weights.sum().iloc[0] == 0.0
+
+
+def test_sma_crossover_accepts_custom_windows():
+    dates = pd.date_range("2024-01-01", periods=5, freq="D")
+    close = pd.Series([1.0, 1.0, 2.0, 3.0, 4.0], index=dates, name="AAA")
+
+    weights = weights_sma_crossover(close, short_window=2, long_window=3)
+
+    assert weights.loc[dates[-1], "AAA"] == 1.0

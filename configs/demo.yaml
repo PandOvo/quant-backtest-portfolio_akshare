@@ -1,0 +1,27 @@
+assets:
+  - 600519.SH
+  - 000001.SZ
+  - 600000.SH
+baseline: 600519.SH
+start: "2015-01-01"
+end:
+cost_bps: 10
+adjust: qfq
+cache_dir: data
+output_dir: output
+
+strategies:
+  sma:
+    enabled: true
+    short_window: 20
+    long_window: 60
+  momentum:
+    enabled: true
+    lookback: 12
+    skip: 1
+    top_n: 2
+  low_volatility:
+    enabled: true
+    lookback: 60
+    top_n: 1
+

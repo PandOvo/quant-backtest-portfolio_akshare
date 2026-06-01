@@ -5,9 +5,9 @@ import akshare as ak
 from .config import CACHE_DIR, START, END
 
 def _ensure_dir(d): os.makedirs(d, exist_ok=True)
-def _csv_path(code: str) -> str:
-    _ensure_dir(CACHE_DIR)
-    return os.path.join(CACHE_DIR, f"{code}.csv")
+def _csv_path(code: str, cache_dir=CACHE_DIR) -> str:
+    _ensure_dir(cache_dir)
+    return os.path.join(cache_dir, f"{code}.csv")
 
 def _read_local(path, start, end):
     if not os.path.exists(path): return None
@@ -56,9 +56,9 @@ def _etf_symbol(code: str) -> str:
     num, _ = _split_code(code)
     return num
 
-def get_price(code: str, start=START, end=END, use_cache=True, adjust="qfq") -> pd.DataFrame:
+def get_price(code: str, start=START, end=END, use_cache=True, adjust="qfq", cache_dir=CACHE_DIR) -> pd.DataFrame:
 
-    path = _csv_path(code)
+    path = _csv_path(code, cache_dir=cache_dir)
     if use_cache:
         local = _read_local(path, start, end)
         if local is not None:

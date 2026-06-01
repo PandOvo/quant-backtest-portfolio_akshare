@@ -2,10 +2,10 @@ import numpy as np
 import pandas as pd
 from .config import SMA_SHORT, SMA_LONG, MOM_LOOKBACK, MOM_SKIP, MOM_TOP_N
 
-def weights_sma_crossover(close: pd.Series) -> pd.DataFrame:
+def weights_sma_crossover(close: pd.Series, short_window=SMA_SHORT, long_window=SMA_LONG) -> pd.DataFrame:
     s = close.dropna()
-    ma_s = s.rolling(SMA_SHORT).mean()
-    ma_l = s.rolling(SMA_LONG).mean()
+    ma_s = s.rolling(short_window).mean()
+    ma_l = s.rolling(long_window).mean()
     signal = (ma_s > ma_l).astype(int)
     w = pd.DataFrame(index=s.index, data={
         "ASSET": signal.astype(float),
@@ -18,8 +18,8 @@ def _mom_score(prices: pd.DataFrame, lookback=12, skip=1):
     m = prices.resample("ME").last().dropna(how="all")
     return m.shift(skip) / m.shift(lookback) - 1.0
 
-def weights_momentum_rotation(close: pd.DataFrame, top_n=MOM_TOP_N) -> pd.DataFrame:
-    score = _mom_score(close, lookback=MOM_LOOKBACK, skip=MOM_SKIP)
+def weights_momentum_rotation(close: pd.DataFrame, lookback=MOM_LOOKBACK, skip=MOM_SKIP, top_n=MOM_TOP_N) -> pd.DataFrame:
+    score = _mom_score(close, lookback=lookback, skip=skip)
     monthly_dates = score.index
     weights_list = []
     for dt in monthly_dates:
