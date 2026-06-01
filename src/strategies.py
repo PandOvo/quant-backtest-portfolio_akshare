@@ -16,9 +16,7 @@ def weights_sma_crossover(close: pd.Series) -> pd.DataFrame:
 
 def _mom_score(prices: pd.DataFrame, lookback=12, skip=1):
     m = prices.resample("ME").last().dropna(how="all")
-    ret = m.pct_change(lookback) - m.pct_change(skip)
-    score = ret.shift(1)
-    return score
+    return m.shift(skip) / m.shift(lookback) - 1.0
 
 def weights_momentum_rotation(close: pd.DataFrame, top_n=MOM_TOP_N) -> pd.DataFrame:
     score = _mom_score(close, lookback=MOM_LOOKBACK, skip=MOM_SKIP)
@@ -33,6 +31,8 @@ def weights_momentum_rotation(close: pd.DataFrame, top_n=MOM_TOP_N) -> pd.DataFr
         w.loc[top] = 1.0 / len(top)
         w.name = dt
         weights_list.append(w)
+    if not weights_list:
+        return pd.DataFrame(0.0, index=close.index, columns=close.columns)
     w_monthly = pd.DataFrame(weights_list).sort_index()
     w_daily = w_monthly.reindex(close.resample("D").last().index).ffill().reindex(close.index).fillna(0.0)
     return w_daily

@@ -33,22 +33,30 @@ def _normalize(df: pd.DataFrame) -> pd.DataFrame:
     df.index.name = "Date"
     return df
 
-def _is_stock(code: str) -> bool:
-    return bool(re.match(r"^\d{6}\.(SH|SZ)$", code, re.IGNORECASE))
+def _split_code(code: str) -> tuple[str, str]:
+    if not re.match(r"^\d{6}\.(SH|SZ)$", code, re.IGNORECASE):
+        raise RuntimeError(f"不识别的代码格式：{code}，请用 6位代码+交易所后缀，例如 600519.SH / 510300.SH")
+    num, ex = code.upper().split(".")
+    return num, ex
 
 def _is_etf(code: str) -> bool:
-    return bool(re.match(r"^\d{6}\.(SH|SZ)$", code, re.IGNORECASE))  # ETF 也是 6位+交易所后缀
+    num, ex = _split_code(code)
+    return (ex == "SH" and num.startswith(("510", "511", "512", "513", "515", "516", "517", "518", "588"))) or (
+        ex == "SZ" and num.startswith("159")
+    )
+
+def _is_stock(code: str) -> bool:
+    return bool(re.match(r"^\d{6}\.(SH|SZ)$", code, re.IGNORECASE)) and not _is_etf(code)
 
 def _to_ak_symbol_stock(code: str) -> str:
-
-    num, ex = code.split(".")
+    num, ex = _split_code(code)
     return f"{ex.lower()}{num}"
 
 def _etf_symbol(code: str) -> str:
+    num, _ = _split_code(code)
+    return num
 
-    return code.split(".")[0]
-
-def get_price(code: str, start=START, end=END, use_cache=True) -> pd.DataFrame:
+def get_price(code: str, start=START, end=END, use_cache=True, adjust="qfq") -> pd.DataFrame:
 
     path = _csv_path(code)
     if use_cache:
@@ -56,9 +64,18 @@ def get_price(code: str, start=START, end=END, use_cache=True) -> pd.DataFrame:
         if local is not None:
             return local
 
+    if _is_etf(code):
+        symbol = _etf_symbol(code)
+        df = ak.fund_etf_hist_em(symbol=symbol, period="daily", start_date=start.replace("-", ""), end_date=(end or "").replace("-", ""))
+        df["Date"] = pd.to_datetime(df["日期"])
+        df = df.set_index("Date").sort_index()
+        norm = _normalize(df)
+        _write_local(path, norm)
+        return norm.loc[start:end]
+
     if _is_stock(code):
         symbol = _to_ak_symbol_stock(code)
-        df = ak.stock_zh_a_daily(symbol=symbol, adjust="")
+        df = ak.stock_zh_a_daily(symbol=symbol, adjust=adjust)
 
         df = df.reset_index().rename(columns={"index": "Date"}) if "index" in df.columns else df
         if "date" in df.columns:
@@ -67,15 +84,6 @@ def get_price(code: str, start=START, end=END, use_cache=True) -> pd.DataFrame:
             df["Date"] = pd.to_datetime(df["日期"])
         else:
             df["Date"] = pd.to_datetime(df["Date"])
-        df = df.set_index("Date").sort_index()
-        norm = _normalize(df)
-        _write_local(path, norm)
-        return norm.loc[start:end]
-
-    if _is_etf(code):
-        symbol = _etf_symbol(code)
-        df = ak.fund_etf_hist_em(symbol=symbol, period="daily", start_date=start.replace("-", ""), end_date=(end or "").replace("-", ""))
-        df["Date"] = pd.to_datetime(df["日期"])
         df = df.set_index("Date").sort_index()
         norm = _normalize(df)
         _write_local(path, norm)
