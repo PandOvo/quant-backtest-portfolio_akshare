@@ -38,6 +38,7 @@
 
 完整报表见：
 
+- [量化投资策略报告.pdf](量化投资策略报告.pdf)
 - [总览_指标汇总.csv](output/reports/总览_指标汇总.csv)
 - [双均线_参数扫描.csv](output/reports/双均线_参数扫描.csv)
 
@@ -165,6 +166,12 @@ strategies:
 
 ```bash
 pytest
+```
+
+## 生成策略报告 PDF
+
+```bash
+python scripts/generate_strategy_report.py
 ```
 
 ## 路线图

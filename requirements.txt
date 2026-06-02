@@ -3,4 +3,5 @@ numpy>=1.24.0
 matplotlib>=3.7.0
 akshare>=1.2.89
 PyYAML>=6.0.0
+reportlab>=4.0.0
 pytest>=8.0.0
