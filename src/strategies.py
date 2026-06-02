@@ -14,6 +14,76 @@ def weights_sma_crossover(close: pd.Series, short_window=SMA_SHORT, long_window=
     w.rename(columns={"ASSET": s.name}, inplace=True)
     return w[[s.name, "CASH"]]
 
+
+def weights_enhanced_sma_crossover(
+    close: pd.Series,
+    short_window=SMA_SHORT,
+    long_window=SMA_LONG,
+    band=0.01,
+    confirm_days=3,
+    require_long_ma_rising=True,
+    slope_window=5,
+    stop_loss_pct=0.08,
+    trailing_stop_pct=0.12,
+    target_vol=0.18,
+    vol_lookback=20,
+    max_position=1.0,
+) -> pd.DataFrame:
+    s = close.dropna()
+    ma_s = s.rolling(short_window).mean()
+    ma_l = s.rolling(long_window).mean()
+    ret = s.pct_change()
+    ann_vol = ret.rolling(vol_lookback).std() * np.sqrt(252)
+
+    above_band = ma_s > ma_l * (1.0 + band)
+    below_band = ma_s < ma_l * (1.0 - band)
+    if require_long_ma_rising:
+        trend_ok = ma_l > ma_l.shift(slope_window)
+    else:
+        trend_ok = pd.Series(True, index=s.index)
+
+    entry_signal = (above_band & trend_ok).fillna(False)
+    exit_signal = (below_band | ~trend_ok).fillna(False)
+
+    confirm_days = max(1, int(confirm_days))
+    asset_weights = []
+    in_position = False
+    confirmed = 0
+    entry_price = np.nan
+    peak_price = np.nan
+
+    for dt, price in s.items():
+        if in_position:
+            peak_price = max(peak_price, price)
+            stop_hit = stop_loss_pct is not None and price <= entry_price * (1.0 - stop_loss_pct)
+            trail_hit = trailing_stop_pct is not None and price <= peak_price * (1.0 - trailing_stop_pct)
+            if exit_signal.loc[dt] or stop_hit or trail_hit:
+                in_position = False
+                confirmed = 0
+                entry_price = np.nan
+                peak_price = np.nan
+        else:
+            confirmed = confirmed + 1 if entry_signal.loc[dt] else 0
+            if confirmed >= confirm_days:
+                in_position = True
+                entry_price = price
+                peak_price = price
+
+        if not in_position:
+            asset_weights.append(0.0)
+            continue
+
+        weight = max_position
+        vol = ann_vol.loc[dt]
+        if target_vol is not None and pd.notna(vol) and vol > 0:
+            weight = min(max_position, target_vol / vol)
+        asset_weights.append(float(max(0.0, min(max_position, weight))))
+
+    asset_weight = pd.Series(asset_weights, index=s.index, name=s.name)
+    w = pd.DataFrame({s.name: asset_weight, "CASH": 1.0 - asset_weight})
+    return w[[s.name, "CASH"]]
+
+
 def _mom_score(prices: pd.DataFrame, lookback=12, skip=1):
     m = prices.resample("ME").last().dropna(how="all")
     return m.shift(skip) / m.shift(lookback) - 1.0

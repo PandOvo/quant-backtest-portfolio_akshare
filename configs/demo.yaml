@@ -13,8 +13,26 @@ output_dir: output
 strategies:
   sma:
     enabled: true
-    short_window: 20
-    long_window: 60
+    short_window: 30
+    long_window: 50
+    grid_search:
+      enabled: true
+      short_windows: [10, 20, 30]
+      long_windows: [50, 60, 120]
+      objective: 夏普比率
+  enhanced_sma:
+    enabled: true
+    short_window: 30
+    long_window: 50
+    band: 0.01
+    confirm_days: 3
+    require_long_ma_rising: true
+    slope_window: 5
+    stop_loss_pct: 0.08
+    trailing_stop_pct: 0.12
+    target_vol: 0.18
+    vol_lookback: 20
+    max_position: 1.0
   momentum:
     enabled: true
     lookback: 12

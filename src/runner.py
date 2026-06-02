@@ -13,6 +13,7 @@ from .strategies import (
     weights_momentum_rotation,
     weights_momentum_low_vol_score,
     weights_risk_parity,
+    weights_enhanced_sma_crossover,
     weights_sma_crossover,
     weights_trend_filtered_momentum,
 )
@@ -31,6 +32,7 @@ def _baseline_nav(cfg: BacktestConfig, index) -> pd.Series:
 def run_sma(cfg: BacktestConfig):
     params = cfg.strategies.get("sma", {})
     s = get_close_series(cfg.baseline, start=cfg.start, end=cfg.end, adjust=cfg.adjust, cache_dir=cfg.cache_dir)
+    run_sma_grid_search(cfg, s)
     w = weights_sma_crossover(
         s,
         short_window=params.get("short_window", 20),
@@ -44,6 +46,65 @@ def run_sma(cfg: BacktestConfig):
     met = summary_table(res)
     met.to_csv(os.path.join(cfg.output_rep_dir, "sma_指标.csv"), index=False, encoding="utf-8-sig")
     return res, met
+
+
+def run_sma_grid_search(cfg: BacktestConfig, close: pd.Series) -> pd.DataFrame | None:
+    params = cfg.strategies.get("sma", {})
+    grid = params.get("grid_search", {})
+    if not grid.get("enabled", False):
+        return None
+
+    close_df = pd.concat([close, pd.Series(1.0, index=close.index, name="CASH")], axis=1)
+    rows = []
+    for short_window in grid.get("short_windows", [10, 20, 30]):
+        for long_window in grid.get("long_windows", [50, 60, 120]):
+            if short_window >= long_window:
+                continue
+            weights = weights_sma_crossover(close, short_window=short_window, long_window=long_window)
+            result = backtest_weights(close_df, weights, cost_bps=cfg.cost_bps)
+            metrics = summary_table(result).iloc[0].to_dict()
+            metrics.update({"短均线": short_window, "长均线": long_window})
+            rows.append(metrics)
+
+    if not rows:
+        return None
+
+    report = pd.DataFrame(rows)
+    objective = grid.get("objective", "夏普比率")
+    if objective in report.columns:
+        report = report.sort_values(objective, ascending=False)
+    report = report[["短均线", "长均线"] + [c for c in report.columns if c not in ["短均线", "长均线"]]]
+    report.to_csv(os.path.join(cfg.output_rep_dir, "双均线_参数扫描.csv"), index=False, encoding="utf-8-sig")
+    return report
+
+
+def run_enhanced_sma(cfg: BacktestConfig):
+    params = cfg.strategies.get("enhanced_sma", {})
+    s = get_close_series(cfg.baseline, start=cfg.start, end=cfg.end, adjust=cfg.adjust, cache_dir=cfg.cache_dir)
+    w = weights_enhanced_sma_crossover(
+        s,
+        short_window=params.get("short_window", 20),
+        long_window=params.get("long_window", 60),
+        band=params.get("band", 0.01),
+        confirm_days=params.get("confirm_days", 3),
+        require_long_ma_rising=params.get("require_long_ma_rising", True),
+        slope_window=params.get("slope_window", 5),
+        stop_loss_pct=params.get("stop_loss_pct", 0.08),
+        trailing_stop_pct=params.get("trailing_stop_pct", 0.12),
+        target_vol=params.get("target_vol", 0.18),
+        vol_lookback=params.get("vol_lookback", 20),
+        max_position=params.get("max_position", 1.0),
+    )
+    close = pd.concat([s, pd.Series(1.0, index=s.index, name="CASH")], axis=1)
+    res = backtest_weights(close, w, cost_bps=cfg.cost_bps)
+    _, dd = max_drawdown(res["nav"])
+    plot_equity(res["nav"], save_path=os.path.join(cfg.output_fig_dir, "增强双均线_净值.png"), title="增强双均线策略 - 净值曲线")
+    plot_drawdown(dd, save_path=os.path.join(cfg.output_fig_dir, "增强双均线_回撤.png"), title="增强双均线策略 - 回撤曲线")
+    plot_weights_area(w, save_path=os.path.join(cfg.output_fig_dir, "增强双均线_仓位.png"), title="增强双均线仓位")
+    plot_monthly_heatmap(monthly_returns(res["port_ret"]), save_path=os.path.join(cfg.output_fig_dir, "增强双均线_月度收益热力图.png"))
+    met = summary_table(res)
+    met.to_csv(os.path.join(cfg.output_rep_dir, "增强双均线_指标.csv"), index=False, encoding="utf-8-sig")
+    return res, met, w
 
 
 def run_momentum(cfg: BacktestConfig, close_panel=None):
@@ -173,6 +234,9 @@ def run_backtest(cfg: BacktestConfig) -> pd.DataFrame:
     if _strategy_enabled(cfg, "sma"):
         _, sma_met = run_sma(cfg)
         metrics.append(sma_met.assign(策略="双均线交叉"))
+    if _strategy_enabled(cfg, "enhanced_sma"):
+        _, enhanced_sma_met, _ = run_enhanced_sma(cfg)
+        metrics.append(enhanced_sma_met.assign(策略="增强双均线"))
     if _strategy_enabled(cfg, "momentum"):
         _, mom_met, _ = run_momentum(cfg, panel)
         metrics.append(mom_met.assign(策略="12-1动量"))

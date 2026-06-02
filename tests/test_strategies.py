@@ -2,6 +2,7 @@ import pandas as pd
 
 from src.strategies import _mom_score, weights_momentum_rotation
 from src.strategies import (
+    weights_enhanced_sma_crossover,
     weights_momentum_low_vol_score,
     weights_risk_parity,
     weights_sma_crossover,
@@ -121,3 +122,64 @@ def test_sma_crossover_accepts_custom_windows():
     weights = weights_sma_crossover(close, short_window=2, long_window=3)
 
     assert weights.loc[dates[-1], "AAA"] == 1.0
+
+
+def test_enhanced_sma_requires_confirmed_breakout():
+    dates = pd.date_range("2024-01-01", periods=8, freq="D")
+    close = pd.Series([10.0, 10.0, 10.0, 10.0, 11.0, 12.0, 13.0, 14.0], index=dates, name="AAA")
+
+    weights = weights_enhanced_sma_crossover(
+        close,
+        short_window=2,
+        long_window=3,
+        band=0.0,
+        confirm_days=2,
+        require_long_ma_rising=False,
+        stop_loss_pct=None,
+        trailing_stop_pct=None,
+        target_vol=None,
+    )
+
+    assert weights.loc[dates[4], "AAA"] == 0.0
+    assert weights.loc[dates[5], "AAA"] == 1.0
+
+
+def test_enhanced_sma_trailing_stop_moves_to_cash():
+    dates = pd.date_range("2024-01-01", periods=10, freq="D")
+    close = pd.Series([10.0, 10.0, 10.0, 11.0, 12.0, 13.0, 14.0, 12.0, 11.0, 10.0], index=dates, name="AAA")
+
+    weights = weights_enhanced_sma_crossover(
+        close,
+        short_window=2,
+        long_window=3,
+        band=0.0,
+        confirm_days=1,
+        require_long_ma_rising=False,
+        stop_loss_pct=None,
+        trailing_stop_pct=0.1,
+        target_vol=None,
+    )
+
+    assert weights.loc[dates[6], "AAA"] == 1.0
+    assert weights.loc[dates[7], "AAA"] == 0.0
+
+
+def test_enhanced_sma_can_scale_position_by_volatility():
+    dates = pd.date_range("2024-01-01", periods=12, freq="D")
+    close = pd.Series([10.0, 10.0, 11.0, 9.0, 12.0, 10.0, 13.0, 11.0, 14.0, 12.0, 15.0, 17.0], index=dates, name="AAA")
+
+    weights = weights_enhanced_sma_crossover(
+        close,
+        short_window=2,
+        long_window=3,
+        band=0.0,
+        confirm_days=1,
+        require_long_ma_rising=False,
+        stop_loss_pct=None,
+        trailing_stop_pct=None,
+        target_vol=0.1,
+        vol_lookback=3,
+        max_position=1.0,
+    )
+
+    assert 0.0 < weights.loc[dates[-1], "AAA"] < 1.0
